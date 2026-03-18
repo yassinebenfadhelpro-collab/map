@@ -1,0 +1,1010 @@
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demand Generator Map — 63ter Av. Édouard Vaillant, Boulogne-Billancourt</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',Arial,sans-serif; background:#F4F5F7; overflow:hidden; }
+
+#header {
+  background:#1A2B45; color:white;
+  padding:11px 20px; height:52px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:3px solid #B8941F;
+  position:relative; z-index:1000;
+}
+#header h1 { font-size:14px; font-weight:600; }
+#header p  { font-size:10px; color:#8AABCC; margin-top:1px; }
+#header-right { display:flex; align-items:center; gap:10px; }
+#header-meta { font-size:10px; color:#8AABCC; text-align:right; line-height:1.6; }
+
+.btn { padding:6px 13px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all .15s; }
+.btn-add    { background:#B8941F; color:white; }
+.btn-add:hover    { background:#9A7A18; }
+.btn-export { background:#2A4A72; color:white; }
+.btn-export:hover { background:#1A3A5C; }
+.btn-download { background:#1A6B3A; color:white; }
+.btn-download:hover { background:#135430; }
+
+#wrapper { display:flex; height:calc(100vh - 52px); }
+
+#sidebar {
+  width:260px; min-width:260px;
+  background:white; overflow-y:auto;
+  border-right:1px solid #E2E6EC;
+  display:flex; flex-direction:column; z-index:10;
+}
+#sidebar-top {
+  padding:10px 14px 8px; border-bottom:1px solid #E2E6EC;
+  display:flex; align-items:center; justify-content:space-between;
+}
+#sidebar-title { font-size:10px; font-weight:700; color:#1A2B45; text-transform:uppercase; letter-spacing:.08em; }
+#generator-count { font-size:10px; color:#9BA3AD; }
+.cat-section { border-bottom:1px solid #F0F2F5; }
+.cat-header { display:flex; align-items:center; padding:8px 14px; cursor:pointer; user-select:none; }
+.cat-header:hover { background:#F8F9FB; }
+.cat-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-right:8px; }
+.cat-label { font-size:11.5px; font-weight:600; color:#1A2B45; flex:1; }
+.cat-count { font-size:10px; color:#9BA3AD; background:#F0F2F5; border-radius:10px; padding:1px 6px; margin-right:5px; }
+.cat-toggle { font-size:10px; color:#9BA3AD; }
+.cat-items.collapsed { display:none; }
+.gen-item {
+  padding:6px 14px 6px 32px; cursor:pointer;
+  border-left:3px solid transparent; transition:background .1s;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.gen-item:hover { background:#F4F5F7; }
+.gen-item.active { background:#EEF3FB; border-left-color:#1A2B45; }
+.gen-item-text { flex:1; min-width:0; }
+.gen-name { font-size:11px; font-weight:600; color:#1A2B45; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gen-dist { font-size:10px; color:#9BA3AD; margin-top:1px; }
+.gen-edit-btn {
+  opacity:0; transition:opacity .1s;
+  padding:2px 7px; background:#EEF3FB; border:1px solid #CBD5E1;
+  border-radius:3px; font-size:10px; color:#4E6580; cursor:pointer;
+  flex-shrink:0; margin-left:6px; font-family:inherit;
+}
+.gen-item:hover .gen-edit-btn { opacity:1; }
+
+#map { flex:1; }
+
+#edit-panel {
+  position:fixed; right:0; top:52px; bottom:0; width:340px;
+  background:white; box-shadow:-4px 0 20px rgba(0,0,0,.12);
+  z-index:2000; display:flex; flex-direction:column;
+  transform:translateX(100%); transition:transform .25s cubic-bezier(.4,0,.2,1);
+}
+#edit-panel.open { transform:translateX(0); }
+#ep-header {
+  background:#1A2B45; color:white; padding:12px 16px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+#ep-title { font-size:13px; font-weight:600; }
+#ep-close { background:none; border:none; color:#8AABCC; font-size:18px; cursor:pointer; padding:0 4px; line-height:1; }
+#ep-close:hover { color:white; }
+#ep-body { flex:1; overflow-y:auto; padding:16px; }
+#ep-footer { padding:12px 16px; border-top:1px solid #E2E6EC; display:flex; gap:8px; }
+
+.fg { margin-bottom:14px; }
+.fl { font-size:10px; font-weight:700; color:#4E6580; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; display:block; }
+.fi, .fs, .ft {
+  width:100%; padding:7px 10px; border:1px solid #D8DCE3; border-radius:4px;
+  font-size:12px; font-family:inherit; color:#1A2B45; background:white; transition:border-color .15s;
+}
+.fi:focus, .fs:focus, .ft:focus { outline:none; border-color:#1A2B45; }
+.ft { resize:vertical; min-height:56px; }
+.fhint { font-size:10px; color:#9BA3AD; margin-top:3px; }
+.frow { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+.str-row { display:flex; gap:6px; margin-top:4px; }
+.str-btn { width:30px; height:28px; border:1px solid #D8DCE3; border-radius:4px; background:white; font-size:13px; cursor:pointer; color:#CCCCCC; transition:all .15s; display:flex; align-items:center; justify-content:center; }
+.str-btn.active { background:#B8941F; border-color:#B8941F; color:white; }
+
+.btn-save   { flex:1; background:#1A2B45; color:white; }
+.btn-save:hover { background:#0F1E32; }
+.btn-delete { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; }
+.btn-delete:hover { background:#FEE2E2; }
+.btn-cancel { background:#F4F5F7; color:#4E6580; border:1px solid #D8DCE3; }
+.btn-cancel:hover { background:#E8EAED; }
+
+#pick-hint {
+  background:#EFF6FF; border:1px solid #BFDBFE; border-radius:4px;
+  padding:8px 10px; font-size:11px; color:#1D4ED8; margin-bottom:14px;
+}
+.btn-pick { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size:11px; }
+.btn-pick:hover { background:#DBEAFE; }
+.btn-pick.picking { background:#DBEAFE; border-color:#93C5FD; }
+
+#toast {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#1A2B45; color:white; padding:10px 20px; border-radius:6px;
+  font-size:12px; z-index:9999; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap;
+}
+#toast.show { opacity:1; }
+
+.map-legend { background:white; border-radius:5px; padding:9px 12px; font-size:11px; box-shadow:0 2px 10px rgba(0,0,0,.1); line-height:1.9; }
+.map-legend h4 { font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:#9BA3AD; margin-bottom:4px; }
+.legend-row { display:flex; align-items:center; gap:7px; }
+.legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+.leaflet-popup-content-wrapper { border-radius:6px!important; box-shadow:0 4px 20px rgba(0,0,0,.18)!important; padding:0!important; overflow:hidden; min-width:270px; max-width:310px; }
+.leaflet-popup-content { margin:0!important; width:auto!important; }
+.ph { padding:10px 13px 8px; color:white; }
+.ph h3 { font-size:12.5px; font-weight:700; line-height:1.3; }
+.ph .pc { font-size:10px; opacity:.8; margin-top:2px; }
+.pb { padding:9px 13px 11px; background:white; }
+.pr { display:flex; margin-bottom:5px; }
+.pr:last-child { margin-bottom:0; }
+.pl { font-size:9.5px; font-weight:700; color:#9BA3AD; text-transform:uppercase; letter-spacing:.05em; width:66px; flex-shrink:0; padding-top:1px; }
+.pv { font-size:11px; color:#333; line-height:1.4; }
+.pe { display:block; margin-top:8px; text-align:center; font-size:11px; color:#1A3F6A; cursor:pointer; text-decoration:underline; }
+
+#sidebar::-webkit-scrollbar, #ep-body::-webkit-scrollbar { width:4px; }
+#sidebar::-webkit-scrollbar-thumb, #ep-body::-webkit-scrollbar-thumb { background:#D8DCE3; border-radius:2px; }
+
+/* LOCATION PICKER TABS */
+.loc-tabs { display:flex; border:1px solid #D8DCE3; border-radius:5px; overflow:hidden; margin-bottom:10px; }
+.loc-tab {
+  flex:1; padding:6px 4px; text-align:center; font-size:10.5px; font-weight:600;
+  cursor:pointer; color:#9BA3AD; background:white; border:none; font-family:inherit;
+  transition:all .15s; border-right:1px solid #D8DCE3;
+}
+.loc-tab:last-child { border-right:none; }
+.loc-tab.active { background:#1A2B45; color:white; }
+.loc-tab:hover:not(.active) { background:#F4F5F7; color:#1A2B45; }
+.loc-pane { display:none; }
+.loc-pane.active { display:block; }
+.addr-row { display:flex; gap:6px; }
+.addr-row .fi { flex:1; }
+#btn-geocode {
+  padding:7px 12px; background:#1A2B45; color:white;
+  border:none; border-radius:4px; font-size:11px; font-weight:600;
+  cursor:pointer; font-family:inherit; white-space:nowrap;
+}
+#btn-geocode:hover { background:#0F1E32; }
+#btn-geocode.loading { opacity:.55; pointer-events:none; }
+#geocode-status {
+  margin-top:6px; font-size:10.5px; padding:6px 9px;
+  border-radius:4px; display:none;
+}
+#geocode-status.ok  { display:block; background:#F0FDF4; color:#166534; border:1px solid #BBF7D0; }
+#geocode-status.err { display:block; background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; }
+</style>
+</head>
+<body class="">
+
+<div id="header">
+  <div>
+    <h1>Demand Generator Map</h1>
+    <p>63ter Av. Edouard Vaillant, 92100 Boulogne-Billancourt</p>
+  </div>
+  <div id="header-right">
+    <div id="header-meta"><span id="gen-count-hdr">22</span> generators · 5 categories · March 2026 · Confidential</div>
+    <button class="btn btn-add" onclick="openAddPanel()">+ Add</button>
+    <button class="btn btn-export" onclick="exportData()">Export JSON</button>
+    <button class="btn btn-download" onclick="downloadHTML()">⬇ Download HTML</button>
+  </div>
+</div>
+
+<div id="wrapper">
+  <div id="sidebar">
+    <div id="sidebar-top">
+      <div id="sidebar-title">Demand Generators</div>
+      <div id="generator-count">22 total</div>
+    </div>
+    <div style="padding:8px 14px;border-bottom:2px solid #B8941F;background:#FFFBF2;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openSitePanel()">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:12px;height:12px;background:#B8941F;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#1A2B45">Hotel Site</div>
+          <div style="font-size:10px;color:#9BA3AD">63ter Av. Edouard Vaillant</div>
+        </div>
+      </div>
+      <span style="font-size:10px;color:#B8941F;font-weight:600">Edit</span>
+    </div>
+    <div id="sidebar-content"><div class="cat-section"><div class="cat-header"><div class="cat-dot" style="background:#1A3F6A"></div><div class="cat-label">Sports &amp; Events</div><div class="cat-count">4</div><div class="cat-toggle">▾</div></div><div class="cat-items"><div class="gen-item" id="item-1"><div class="gen-item-text"><div class="gen-name">1. Parc des Princes (PSG)</div><div class="gen-dist">~700 m walk</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(1)">Edit</button></div><div class="gen-item" id="item-2"><div class="gen-item-text"><div class="gen-name">2. Stade Roland Garros</div><div class="gen-dist">~1.5 km - Metro L10</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(2)">Edit</button></div><div class="gen-item" id="item-3"><div class="gen-item-text"><div class="gen-name">3. Stade Jean-Bouin (Racing 92)</div><div class="gen-dist">~1 km walk</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(3)">Edit</button></div><div class="gen-item" id="item-4"><div class="gen-item-text"><div class="gen-name">4. Hippodrome Longchamp</div><div class="gen-dist">~1.5 km</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(4)">Edit</button></div></div></div><div class="cat-section"><div class="cat-header"><div class="cat-dot" style="background:#1A5C37"></div><div class="cat-label">Corporate &amp; Business</div><div class="cat-count">7</div><div class="cat-toggle">▾</div></div><div class="cat-items"><div class="gen-item" id="item-5"><div class="gen-item-text"><div class="gen-name">5. Renault Group HQ</div><div class="gen-dist">~1 km</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(5)">Edit</button></div><div class="gen-item" id="item-6"><div class="gen-item-text"><div class="gen-name">6. Carrefour Management Group HQ</div><div class="gen-dist">~700 m</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(6)">Edit</button></div><div class="gen-item" id="item-7"><div class="gen-item-text"><div class="gen-name">7. TF1 Group HQ</div><div class="gen-dist">~1 km</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(7)">Edit</button></div><div class="gen-item" id="item-8"><div class="gen-item-text"><div class="gen-name">8. Canal+ / Vivendi</div><div class="gen-dist">~1 km</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(8)">Edit</button></div><div class="gen-item" id="item-9"><div class="gen-item-text"><div class="gen-name">9. ASO - Amaury Sport Org.</div><div class="gen-dist">HQ in Boulogne-Billancourt</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(9)">Edit</button></div><div class="gen-item" id="item-10"><div class="gen-item-text"><div class="gen-name">10. Xiaomi France + tech cluster</div><div class="gen-dist">~800 m</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(10)">Edit</button></div><div class="gen-item" id="item-25"><div class="gen-item-text"><div class="gen-name">25. ALTEN Group</div><div class="gen-dist">200 m walk</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(25)">Edit</button></div></div></div><div class="cat-section"><div class="cat-header"><div class="cat-dot" style="background:#5B2D6E"></div><div class="cat-label">Cultural &amp; Entertainment</div><div class="cat-count">3</div><div class="cat-toggle">▾</div></div><div class="cat-items"><div class="gen-item" id="item-11"><div class="gen-item-text"><div class="gen-name">11. La Seine Musicale (Ile Seguin)</div><div class="gen-dist">~2 km - Metro L9 ~10 min</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(11)">Edit</button></div><div class="gen-item" id="item-12"><div class="gen-item-text"><div class="gen-name">12. Fondation Louis Vuitton</div><div class="gen-dist">~2.5 km - Bois de Boulogne</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(12)">Edit</button></div><div class="gen-item" id="item-14"><div class="gen-item-text"><div class="gen-name">14. Jardin d'Acclimatation</div><div class="gen-dist">~2 km</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(14)">Edit</button></div></div></div><div class="cat-section"><div class="cat-header"><div class="cat-dot" style="background:#8B4513"></div><div class="cat-label">Transport &amp; Access</div><div class="cat-count">6</div><div class="cat-toggle">▾</div></div><div class="cat-items"><div class="gen-item" id="item-15"><div class="gen-item-text"><div class="gen-name">15. Metro L9 - Marcel Sembat</div><div class="gen-dist">~400 m - 5 min walk</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(15)">Edit</button></div><div class="gen-item" id="item-16"><div class="gen-item-text"><div class="gen-name">16. Metro L9 - Porte de Saint-Cloud</div><div class="gen-dist">~300 m - 4 min walk</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(16)">Edit</button></div><div class="gen-item" id="item-17"><div class="gen-item-text"><div class="gen-name">17. Metro L10 - Porte d'Auteuil</div><div class="gen-dist">~1 km - 12 min walk</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(17)">Edit</button></div><div class="gen-item" id="item-18"><div class="gen-item-text"><div class="gen-name">18. Paris Orly Airport</div><div class="gen-dist">~30 min car or tram T2</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(18)">Edit</button></div><div class="gen-item" id="item-19"><div class="gen-item-text"><div class="gen-name">19. Paris CDG Airport</div><div class="gen-dist">~45 min car or RER B</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(19)">Edit</button></div><div class="gen-item" id="item-20"><div class="gen-item-text"><div class="gen-name">20. Grand Paris Express L15 (future)</div><div class="gen-dist">Pont de Sevres - ~1.5 km</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(20)">Edit</button></div></div></div><div class="cat-section"><div class="cat-header"><div class="cat-dot" style="background:#115C5C"></div><div class="cat-label">Tourism &amp; Leisure</div><div class="cat-count">2</div><div class="cat-toggle">▾</div></div><div class="cat-items"><div class="gen-item" id="item-21"><div class="gen-item-text"><div class="gen-name">21. Bois de Boulogne</div><div class="gen-dist">~500 m-1 km walkable</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(21)">Edit</button></div><div class="gen-item" id="item-24"><div class="gen-item-text"><div class="gen-name">24. Ile Seguin Redevelopment</div><div class="gen-dist">~2 km - Metro L9</div></div><button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel(24)">Edit</button></div></div></div></div>
+  </div>
+  <div id="map" class="leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" tabindex="0" style="position: relative; outline-style: none;"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(-259px, 1014px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"><div class="leaflet-tile-container leaflet-zoom-animated" style="z-index: 19; transform: translate3d(-1286px, 140px, 0px) scale(1);"><img alt="" src="https://a.basemaps.cartocdn.com/light_all/15/16589/11275.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2192px, -990px, 0px); opacity: 1;"><img alt="" src="https://b.basemaps.cartocdn.com/light_all/15/16590/11275.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2448px, -990px, 0px); opacity: 1;"><img alt="" src="https://b.basemaps.cartocdn.com/light_all/15/16589/11276.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2192px, -734px, 0px); opacity: 1;"><img alt="" src="https://c.basemaps.cartocdn.com/light_all/15/16590/11276.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2448px, -734px, 0px); opacity: 1;"><img alt="" src="https://d.basemaps.cartocdn.com/light_all/15/16588/11275.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1936px, -990px, 0px); opacity: 1;"><img alt="" src="https://c.basemaps.cartocdn.com/light_all/15/16591/11275.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2704px, -990px, 0px); opacity: 1;"><img alt="" src="https://a.basemaps.cartocdn.com/light_all/15/16588/11276.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1936px, -734px, 0px); opacity: 1;"><img alt="" src="https://d.basemaps.cartocdn.com/light_all/15/16591/11276.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2704px, -734px, 0px); opacity: 1;"><img alt="" src="https://d.basemaps.cartocdn.com/light_all/15/16589/11274.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2192px, -1246px, 0px); opacity: 1;"><img alt="" src="https://c.basemaps.cartocdn.com/light_all/15/16589/11277.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2192px, -478px, 0px); opacity: 1;"><img alt="" src="https://c.basemaps.cartocdn.com/light_all/15/16588/11274.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1936px, -1246px, 0px); opacity: 1;"><img alt="" src="https://a.basemaps.cartocdn.com/light_all/15/16590/11274.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2448px, -1246px, 0px); opacity: 1;"><img alt="" src="https://b.basemaps.cartocdn.com/light_all/15/16588/11277.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1936px, -478px, 0px); opacity: 1;"><img alt="" src="https://d.basemaps.cartocdn.com/light_all/15/16590/11277.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2448px, -478px, 0px); opacity: 1;"><img alt="" src="https://c.basemaps.cartocdn.com/light_all/15/16587/11275.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1680px, -990px, 0px); opacity: 1;"><img alt="" src="https://d.basemaps.cartocdn.com/light_all/15/16587/11276.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1680px, -734px, 0px); opacity: 1;"><img alt="" src="https://b.basemaps.cartocdn.com/light_all/15/16587/11274.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1680px, -1246px, 0px); opacity: 1;"><img alt="" src="https://b.basemaps.cartocdn.com/light_all/15/16591/11274.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2704px, -1246px, 0px); opacity: 1;"><img alt="" src="https://a.basemaps.cartocdn.com/light_all/15/16587/11277.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1680px, -478px, 0px); opacity: 1;"><img alt="" src="https://a.basemaps.cartocdn.com/light_all/15/16591/11277.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2704px, -478px, 0px); opacity: 1;"><img alt="" src="https://b.basemaps.cartocdn.com/light_all/15/16586/11275.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1424px, -990px, 0px); opacity: 1;"><img alt="" src="https://d.basemaps.cartocdn.com/light_all/15/16592/11275.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2960px, -990px, 0px); opacity: 1;"><img alt="" src="https://c.basemaps.cartocdn.com/light_all/15/16586/11276.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1424px, -734px, 0px); opacity: 1;"><img alt="" src="https://a.basemaps.cartocdn.com/light_all/15/16592/11276.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2960px, -734px, 0px); opacity: 1;"><img alt="" src="https://a.basemaps.cartocdn.com/light_all/15/16586/11274.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1424px, -1246px, 0px); opacity: 1;"><img alt="" src="https://c.basemaps.cartocdn.com/light_all/15/16592/11274.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2960px, -1246px, 0px); opacity: 1;"><img alt="" src="https://d.basemaps.cartocdn.com/light_all/15/16586/11277.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1424px, -478px, 0px); opacity: 1;"><img alt="" src="https://b.basemaps.cartocdn.com/light_all/15/16592/11277.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(2960px, -478px, 0px); opacity: 1;"></div><div class="leaflet-tile-container leaflet-zoom-animated" style="z-index: 18; transform: translate3d(-371px, -46px, 0px) scale(0.5);"></div></div></div><div class="leaflet-pane leaflet-overlay-pane"><svg pointer-events="none" class="leaflet-zoom-animated" width="1992" height="1031" viewBox="93 -1100 1992 1031" style="transform: translate3d(93px, -1100px, 0px);"><g></g></svg></div><div class="leaflet-pane leaflet-shadow-pane"></div><div class="leaflet-pane leaflet-marker-pane"><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -10px; margin-top: -10px; width: 20px; height: 20px; transform: translate3d(836px, -573px, 0px); z-index: 427;"><div style="width:20px;height:20px;background:#B8941F;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;"><div style="width:5px;height:5px;background:white;border-radius:50%"></div></div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(929px, -792px, 0px); z-index: -792;"><div style="width:26px;height:26px;background:#1A3F6A;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">1</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(825px, -1001px, 0px); z-index: -1001;"><div style="width:26px;height:26px;background:#1A3F6A;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">2</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(897px, -856px, 0px); z-index: -856;"><div style="width:26px;height:26px;background:#1A3F6A;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">3</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(468px, -1320px, 0px); z-index: -1320;"><div style="width:26px;height:26px;background:#1A3F6A;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">4</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(1200px, -2018px, 0px); z-index: -2018;"><div style="width:26px;height:26px;background:#5B2D6E;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">12</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(1134px, -1912px, 0px); z-index: -1912;"><div style="width:26px;height:26px;background:#5B2D6E;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">14</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(855px, -955px, 0px); z-index: -955;"><div style="width:26px;height:26px;background:#8B4513;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">17</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(3539px, 3282px, 0px); z-index: 3282;"><div style="width:26px;height:26px;background:#8B4513;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">18</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(7796px, -6761px, 0px); z-index: -6761;"><div style="width:26px;height:26px;background:#8B4513;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">19</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(191px, -300px, 0px); z-index: -300;"><div style="width:26px;height:26px;background:#8B4513;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">20</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(869px, -1738px, 0px); z-index: -1738;"><div style="width:26px;height:26px;background:#115C5C;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">21</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(1108px, -525px, 0px); z-index: -525;"><div style="width:26px;height:26px;background:#1A5C37;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">7</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(344px, -426px, 0px); z-index: -426;"><div style="width:26px;height:26px;background:#1A5C37;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">5</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(580px, -278px, 0px); z-index: -278;"><div style="width:26px;height:26px;background:#1A5C37;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">6</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(1227px, -427px, 0px); z-index: -427;"><div style="width:26px;height:26px;background:#1A5C37;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">8</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(1055px, -432px, 0px); z-index: -432;"><div style="width:26px;height:26px;background:#1A5C37;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">9</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(611px, -382px, 0px); z-index: -382;"><div style="width:26px;height:26px;background:#1A5C37;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">10</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(375px, -248px, 0px); z-index: -248;"><div style="width:26px;height:26px;background:#5B2D6E;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">11</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(703px, -517px, 0px); z-index: -517;"><div style="width:26px;height:26px;background:#8B4513;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">15</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(989px, -639px, 0px); z-index: -639;"><div style="width:26px;height:26px;background:#8B4513;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">16</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(461px, -164px, 0px); z-index: -164;"><div style="width:26px;height:26px;background:#115C5C;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">24</div></div><div class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -13px; margin-top: -13px; width: 26px; height: 26px; transform: translate3d(829px, -546px, 0px); z-index: -546;"><div style="width:26px;height:26px;background:#1A5C37;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">25</div></div></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(4.24697e+06px, 2.88667e+06px, 0px) scale(16384);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in" aria-disabled="false"><span aria-hidden="true">+</span></a><a class="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out" aria-disabled="false"><span aria-hidden="true">−</span></a></div></div><div class="leaflet-top leaflet-right"></div><div class="leaflet-bottom leaflet-left"></div><div class="leaflet-bottom leaflet-right"><div class="map-legend leaflet-control"><h4>Categories</h4><div class="legend-row"><div class="legend-dot" style="background:#1A3F6A"></div><span>Sports &amp; Events</span></div><div class="legend-row"><div class="legend-dot" style="background:#1A5C37"></div><span>Corporate &amp; Business</span></div><div class="legend-row"><div class="legend-dot" style="background:#5B2D6E"></div><span>Cultural &amp; Entertainment</span></div><div class="legend-row"><div class="legend-dot" style="background:#8B4513"></div><span>Transport &amp; Access</span></div><div class="legend-row"><div class="legend-dot" style="background:#115C5C"></div><span>Tourism &amp; Leisure</span></div><div class="legend-row" style="margin-top:7px;padding-top:7px;border-top:1px solid #E2E6EC"><div class="legend-dot" style="background:#B8941F"></div><strong>Hotel Site</strong></div></div><div class="leaflet-control-attribution leaflet-control"><a href="https://leafletjs.com" title="A JavaScript library for interactive maps"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" class="leaflet-attribution-flag"><path fill="#4C7BE1" d="M0 0h12v4H0z"></path><path fill="#FFD500" d="M0 4h12v3H0z"></path><path fill="#E0BC00" d="M0 7h12v1H0z"></path></svg> Leaflet</a> <span aria-hidden="true">|</span> © OpenStreetMap © CARTO</div></div></div></div>
+</div>
+
+<div id="edit-panel" class="">
+  <div id="ep-header">
+    <div id="ep-title">Edit Generator</div>
+    <button id="ep-close" onclick="closePanel()">✕</button>
+  </div>
+  <div id="ep-body">
+    <input type="hidden" id="f-id" value="23">
+    <div class="fg">
+      <label class="fl">Generator Name</label>
+      <input type="text" class="fi" id="f-name" placeholder="e.g. Parc des Princes (PSG)">
+    </div>
+    <div class="fg" id="site-hide-cat" style="">
+      <label class="fl">Category</label>
+      <select class="fs" id="f-cat"><option value="sports">Sports &amp; Events</option><option value="corporate">Corporate &amp; Business</option><option value="cultural">Cultural &amp; Entertainment</option><option value="transport">Transport &amp; Access</option><option value="tourism">Tourism &amp; Leisure</option></select>
+    </div>
+    <div class="fg">
+      <label class="fl">Pin Location</label>
+      <div class="loc-tabs">
+        <button class="loc-tab active" onclick="switchLocTab('addr',this)">🔍 Address</button>
+        <button class="loc-tab" onclick="switchLocTab('coords',this)"># Lat / Lng</button>
+        <button class="loc-tab" onclick="switchLocTab('click',this)">🗺 Click map</button>
+      </div>
+
+      <!-- Tab: address -->
+      <div class="loc-pane active" id="loc-pane-addr">
+        <div class="addr-row">
+          <input type="text" class="fi" id="f-addr" placeholder="e.g. 13 Quai Alphonse le Gallo, Boulogne-Billancourt">
+          <button id="btn-geocode" onclick="geocodeAddress()" class="">Locate</button>
+        </div>
+        <div id="geocode-status" class="" style="display: none;">✓ ALTEN,  65,  Avenue Édouard Vaillant</div>
+        <div class="fhint" style="margin-top:4px">Type a full address and click Locate — or press Enter</div>
+      </div>
+
+      <!-- Tab: lat/lng -->
+      <div class="loc-pane" id="loc-pane-coords">
+        <div class="frow">
+          <div>
+            <input type="number" class="fi" id="f-lat" placeholder="Latitude" step="0.00001">
+            <div class="fhint">e.g. 48.84140</div>
+          </div>
+          <div>
+            <input type="number" class="fi" id="f-lng" placeholder="Longitude" step="0.00001">
+            <div class="fhint">e.g. 2.25320</div>
+          </div>
+        </div>
+        <div class="fhint" style="margin-top:4px">Coordinates update the pin immediately on Save</div>
+      </div>
+
+      <!-- Tab: click map -->
+      <div class="loc-pane" id="loc-pane-click">
+        <button class="btn btn-pick" id="btn-pick" onclick="togglePick()" style="width:100%">🗺 Place pin on map</button>
+        <div class="fhint" style="margin-top:6px">A preview dot will appear — save to confirm</div>
+      </div>
+
+      <!-- Current coords display (always visible) -->
+      <div id="current-coords" style="margin-top:8px;font-size:10px;color:#9BA3AD;">Current: 48.80490, 2.12040</div>
+    </div>
+    <div class="fg" id="site-hide-dist" style="">
+      <label class="fl">Distance / Access</label>
+      <input type="text" class="fi" id="f-dist" placeholder="e.g. ~700 m walk">
+    </div>
+    <div class="fg" id="site-hide-scale" style="">
+      <label class="fl">Scale &amp; Key Figures</label>
+      <textarea class="ft" id="f-scale" placeholder="Capacity, annual visitors, key facts..."></textarea>
+    </div>
+    <div class="fg" id="site-hide-demand" style="">
+      <label class="fl">Demand Type</label>
+      <input type="text" class="fi" id="f-demand" placeholder="e.g. Transient sports / event">
+    </div>
+    <div class="fg" id="site-hide-str" style="">
+      <label class="fl">Strength (1–5)</label>
+      <div class="str-row" id="str-row" data-val="3"><button class="str-btn active" data-v="1">●</button><button class="str-btn active" data-v="2">●</button><button class="str-btn active" data-v="3">●</button><button class="str-btn" data-v="4">●</button><button class="str-btn" data-v="5">●</button></div>
+      <div class="fhint">5 = strongest demand generator</div>
+    </div>
+  </div>
+  <div id="ep-footer">
+    <button class="btn btn-save" onclick="saveGenerator()">Save</button>
+    <button class="btn btn-delete" id="btn-delete" onclick="deleteGenerator()" style="display: block;">Delete</button>
+    <button class="btn btn-cancel" onclick="closePanel()">Cancel</button>
+  </div>
+</div>
+
+<div id="toast" class="">✓ HTML downloaded with all your edits</div>
+
+<script>
+// =====================================================================
+//  DATA  --  edit names, coordinates and fields here or use the panel
+// =====================================================================
+const SITE = {"name":"Hotel Site","lat":48.8352,"lng":2.24919};
+
+const CATEGORIES = [
+  { id:"sports",    label:"Sports & Events",           color:"#1A3F6A" },
+  { id:"corporate", label:"Corporate & Business",      color:"#1A5C37" },
+  { id:"cultural",  label:"Cultural & Entertainment",  color:"#5B2D6E" },
+  { id:"transport", label:"Transport & Access",        color:"#8B4513" },
+  { id:"tourism",   label:"Tourism & Leisure",         color:"#115C5C" }
+];
+
+let GENERATORS = [
+  {
+    "id": 1,
+    "cat": "sports",
+    "name": "Parc des Princes (PSG)",
+    "lat": 48.8414,
+    "lng": 2.2532,
+    "dist": "~700 m walk",
+    "scale": "47,929 cap. - 30-40 events/yr - Ligue 1, UCL, concerts",
+    "demand": "Transient sports / event",
+    "str": 5
+  },
+  {
+    "id": 2,
+    "cat": "sports",
+    "name": "Stade Roland Garros",
+    "lat": 48.8473,
+    "lng": 2.2487,
+    "dist": "~1.5 km - Metro L10",
+    "scale": "675,080 visitors in 2024 - 3-week Grand Slam",
+    "demand": "Intl leisure / sports transient",
+    "str": 5
+  },
+  {
+    "id": 3,
+    "cat": "sports",
+    "name": "Stade Jean-Bouin (Racing 92)",
+    "lat": 48.8432,
+    "lng": 2.2518,
+    "dist": "~1 km walk",
+    "scale": "~20,000 cap. - Top 14 + European Champions Cup",
+    "demand": "Transient sports / group",
+    "str": 4
+  },
+  {
+    "id": 4,
+    "cat": "sports",
+    "name": "Hippodrome Longchamp",
+    "lat": 48.8563,
+    "lng": 2.2334,
+    "dist": "~1.5 km",
+    "scale": "Prix de l'Arc de Triomphe (Oct) - intl racing crowd",
+    "demand": "Premium leisure / high ADR",
+    "str": 3
+  },
+  {
+    "id": 5,
+    "cat": "corporate",
+    "name": "Renault Group HQ",
+    "lat": 48.83105,
+    "lng": 2.22806,
+    "dist": "~1 km",
+    "scale": "Global auto group - suppliers, engineers and partners",
+    "demand": "Corporate transient / ext. stays",
+    "str": 5
+  },
+  {
+    "id": 6,
+    "cat": "corporate",
+    "name": "Carrefour Management Group HQ",
+    "lat": 48.82686,
+    "lng": 2.2382,
+    "dist": "~700 m",
+    "scale": "Global retail leader - HQ in Boulogne-Billancourt",
+    "demand": "Corporate transient",
+    "str": 5
+  },
+  {
+    "id": 7,
+    "cat": "corporate",
+    "name": "TF1 Group HQ",
+    "lat": 48.83386,
+    "lng": 2.26085,
+    "dist": "~1 km",
+    "scale": "France's largest private broadcaster - ad and production pros",
+    "demand": "Corporate / project-based",
+    "str": 4
+  },
+  {
+    "id": 8,
+    "cat": "corporate",
+    "name": "Canal+ / Vivendi",
+    "lat": 48.83109,
+    "lng": 2.26596,
+    "dist": "~1 km",
+    "scale": "Media and content conglomerate - senior mgmt travel",
+    "demand": "Corporate transient",
+    "str": 4
+  },
+  {
+    "id": 9,
+    "cat": "corporate",
+    "name": "ASO - Amaury Sport Org.",
+    "lat": 48.83121,
+    "lng": 2.2586,
+    "dist": "HQ in Boulogne-Billancourt",
+    "scale": "Tour de France, Paris Dakar, Paris Marathon organiser",
+    "demand": "Corporate + event / delegations",
+    "str": 4
+  },
+  {
+    "id": 10,
+    "cat": "corporate",
+    "name": "Xiaomi France + tech cluster",
+    "lat": 48.82981,
+    "lng": 2.23952,
+    "dist": "~800 m",
+    "scale": "12,000+ companies - 30% of Hauts-de-Seine HQs here",
+    "demand": "Corporate / SME meetings",
+    "str": 4
+  },
+  {
+    "id": 11,
+    "cat": "cultural",
+    "name": "La Seine Musicale (Ile Seguin)",
+    "lat": 48.82602,
+    "lng": 2.22941,
+    "dist": "~2 km - Metro L9 ~10 min",
+    "scale": "6,000-cap. Grande Seine + 1,150-seat Auditorium",
+    "demand": "Leisure + MICE / concerts and B2B",
+    "str": 5
+  },
+  {
+    "id": 12,
+    "cat": "cultural",
+    "name": "Fondation Louis Vuitton",
+    "lat": 48.876,
+    "lng": 2.2648,
+    "dist": "~2.5 km - Bois de Boulogne",
+    "scale": "Frank Gehry landmark - top private art foundation",
+    "demand": "Leisure / art tourists - weekends",
+    "str": 4
+  },
+  {
+    "id": 14,
+    "cat": "cultural",
+    "name": "Jardin d'Acclimatation",
+    "lat": 48.873,
+    "lng": 2.262,
+    "dist": "~2 km",
+    "scale": "Theme park + concerts - Grand Palais Ephemere exhibitions",
+    "demand": "Leisure + events / family stays",
+    "str": 3
+  },
+  {
+    "id": 15,
+    "cat": "transport",
+    "name": "Metro L9 - Marcel Sembat",
+    "lat": 48.83361,
+    "lng": 2.24349,
+    "dist": "~400 m - 5 min walk",
+    "scale": "Direct to Trocadero, Opera, Republique - 20-30 min",
+    "demand": "Transit gateway / Paris overflow",
+    "str": 5
+  },
+  {
+    "id": 16,
+    "cat": "transport",
+    "name": "Metro L9 - Porte de Saint-Cloud",
+    "lat": 48.83707,
+    "lng": 2.25576,
+    "dist": "~300 m - 4 min walk",
+    "scale": "Paris-Boulogne boundary stop - Parc des Princes gate",
+    "demand": "Transit gateway / sports access",
+    "str": 5
+  },
+  {
+    "id": 17,
+    "cat": "transport",
+    "name": "Metro L10 - Porte d'Auteuil",
+    "lat": 48.846,
+    "lng": 2.25,
+    "dist": "~1 km - 12 min walk",
+    "scale": "Main Roland Garros entrance - Austerlitz + St-Michel",
+    "demand": "Sports + leisure / Paris transit",
+    "str": 4
+  },
+  {
+    "id": 18,
+    "cat": "transport",
+    "name": "Paris Orly Airport",
+    "lat": 48.7262,
+    "lng": 2.3652,
+    "dist": "~30 min car or tram T2",
+    "scale": "Major domestic + European hub",
+    "demand": "Arriving travellers",
+    "str": 4
+  },
+  {
+    "id": 19,
+    "cat": "transport",
+    "name": "Paris CDG Airport",
+    "lat": 49.0097,
+    "lng": 2.5479,
+    "dist": "~45 min car or RER B",
+    "scale": "France's largest international airport",
+    "demand": "Arriving travellers / international",
+    "str": 3
+  },
+  {
+    "id": 20,
+    "cat": "transport",
+    "name": "Grand Paris Express L15 (future)",
+    "lat": 48.8275,
+    "lng": 2.2215,
+    "dist": "Pont de Sevres - ~1.5 km",
+    "scale": "New orbital metro line - connectivity uplift ~2030",
+    "demand": "Future demand uplift",
+    "str": 3
+  },
+  {
+    "id": 21,
+    "cat": "tourism",
+    "name": "Bois de Boulogne",
+    "lat": 48.8681,
+    "lng": 2.2506,
+    "dist": "~500 m-1 km walkable",
+    "scale": "845 ha - 2nd largest Paris park - millions of visitors/yr",
+    "demand": "Leisure / city break + families",
+    "str": 4
+  },
+  {
+    "id": 24,
+    "cat": "tourism",
+    "name": "Ile Seguin Redevelopment",
+    "lat": 48.82365,
+    "lng": 2.2331,
+    "dist": "~2 km - Metro L9",
+    "scale": "Former Renault island - cultural/creative hub phased",
+    "demand": "Future cultural demand",
+    "str": 3
+  },
+  {
+    "id": 25,
+    "cat": "corporate",
+    "name": "ALTEN Group",
+    "lat": 48.83445,
+    "lng": 2.24889,
+    "dist": "200 m walk",
+    "scale": "",
+    "demand": "",
+    "str": 3
+  }
+];
+
+// =====================================================================
+//  INIT
+// =====================================================================
+const catMap = {};
+CATEGORIES.forEach(function(c){ catMap[c.id] = c; });
+
+var nextId = 25;
+var pickingCoord = false;
+var editingId = null;
+var leafletMarkers = {};
+var tempMarker = null;
+
+// Populate category select
+var fCat = document.getElementById('f-cat');
+CATEGORIES.forEach(function(c){
+  var o = document.createElement('option');
+  o.value = c.id; o.textContent = c.label;
+  fCat.appendChild(o);
+});
+
+// Strength buttons
+var strRow = document.getElementById('str-row');
+for(var i=1; i<=5; i++){
+  (function(v){
+    var b = document.createElement('button');
+    b.className = 'str-btn'; b.textContent = '●'; b.dataset.v = v;
+    b.onclick = function(){ setStr(v); };
+    strRow.appendChild(b);
+  })(i);
+}
+function setStr(v){
+  document.querySelectorAll('.str-btn').forEach(function(b){ b.classList.toggle('active', +b.dataset.v <= v); });
+  document.getElementById('str-row').dataset.val = v;
+}
+function getStr(){ return +(document.getElementById('str-row').dataset.val || 3); }
+
+// =====================================================================
+//  MAP
+// =====================================================================
+var map = L.map('map', { center:[48.8370, 2.2420], zoom:14 });
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
+}).addTo(map);
+
+var siteIcon = L.divIcon({
+  className:'', iconSize:[20,20], iconAnchor:[10,10],
+  html:'<div style="width:20px;height:20px;background:#B8941F;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;"><div style="width:5px;height:5px;background:white;border-radius:50%"></div></div>'
+});
+
+function buildSitePopup(){
+  return '<div class="ph" style="background:#1A2B45"><h3>'+SITE.name+'</h3><div class="pc">&#11088; Project Site</div></div>'
+    +'<div class="pb">'
+    +'<div class="pr"><div class="pl">Coords</div><div class="pv">'+SITE.lat.toFixed(5)+', '+SITE.lng.toFixed(5)+'</div></div>'
+    +'<div class="pe" onclick="openSitePanel()">&#9998; Edit site pin</div>'
+    +'</div>';
+}
+
+var siteMarker = L.marker([SITE.lat, SITE.lng], { icon:siteIcon, zIndexOffset:1000 })
+  .addTo(map)
+  .bindPopup(buildSitePopup());
+
+function openSitePanel(){
+  editingId = 'site';
+  document.getElementById('ep-title').textContent = 'Edit Hotel Site Pin';
+  document.getElementById('btn-delete').style.display = 'none';
+  document.getElementById('f-name').value  = SITE.name;
+  document.getElementById('f-lat').value   = SITE.lat;
+  document.getElementById('f-lng').value   = SITE.lng;
+  document.getElementById('f-addr').value  = '';
+  document.getElementById('geocode-status').className = '';
+  resetLocTab();
+  updateCoordsDisplay(SITE.lat, SITE.lng);
+  // hide generator-only fields
+  ['site-hide-cat','site-hide-dist','site-hide-scale','site-hide-demand','site-hide-str'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+  map.closePopup();
+  document.getElementById('edit-panel').classList.add('open');
+}
+
+function restoreAllFields(){
+  ['site-hide-cat','site-hide-dist','site-hide-scale','site-hide-demand','site-hide-str'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = '';
+  });
+}
+
+map.on('click', function(e){
+  if(!pickingCoord) return;
+  var lat = e.latlng.lat, lng = e.latlng.lng;
+  document.getElementById('f-lat').value = lat.toFixed(5);
+  document.getElementById('f-lng').value = lng.toFixed(5);
+  updateCoordsDisplay(lat, lng);
+  if(tempMarker) map.removeLayer(tempMarker);
+  tempMarker = L.circleMarker([lat, lng], { radius:8, color:'#1D4ED8', fillColor:'#93C5FD', fillOpacity:.8, weight:2 }).addTo(map);
+  stopPick();
+  showToast('Position updated — save to confirm');
+});
+
+// =====================================================================
+//  MARKERS
+// =====================================================================
+function makeIcon(color, number){
+  return L.divIcon({
+    className:'', iconSize:[26,26], iconAnchor:[13,13], popupAnchor:[0,-14],
+    html:'<div style="width:26px;height:26px;background:'+color+';border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;font-family:Segoe UI,Arial,sans-serif;">'+number+'</div>'
+  });
+}
+function dots(str){
+  return '<span style="color:#B8941F">'+'●'.repeat(str)+'</span><span style="color:#DDDDDD">'+'●'.repeat(5-str)+'</span>';
+}
+function buildPopup(g){
+  var cat = catMap[g.cat];
+  return '<div class="ph" style="background:'+cat.color+'"><h3>'+g.name+'</h3><div class="pc">'+cat.label+'</div></div>'
+    +'<div class="pb">'
+    +'<div class="pr"><div class="pl">Distance</div><div class="pv">'+g.dist+'</div></div>'
+    +'<div class="pr"><div class="pl">Scale</div><div class="pv">'+g.scale+'</div></div>'
+    +'<div class="pr"><div class="pl">Demand</div><div class="pv">'+g.demand+'</div></div>'
+    +'<div class="pr"><div class="pl">Strength</div><div class="pv">'+dots(g.str)+'</div></div>'
+    +'<div class="pe" onclick="openEditPanel('+g.id+')">&#9998; Edit this generator</div>'
+    +'</div>';
+}
+function addMarker(g){
+  var cat = catMap[g.cat];
+  var m = L.marker([g.lat, g.lng], { icon:makeIcon(cat.color, g.id) }).addTo(map);
+  m.bindPopup(buildPopup(g), { maxWidth:320 });
+  m.on('click', function(){ highlightSidebar(g.id); });
+  leafletMarkers[g.id] = m;
+}
+function removeMarker(id){
+  if(leafletMarkers[id]){ map.removeLayer(leafletMarkers[id]); delete leafletMarkers[id]; }
+}
+function refreshMarker(g){
+  removeMarker(g.id); addMarker(g);
+}
+
+// =====================================================================
+//  SIDEBAR
+// =====================================================================
+function buildSidebar(){
+  var sb = document.getElementById('sidebar-content');
+  sb.innerHTML = '';
+  var total = GENERATORS.length;
+  document.getElementById('generator-count').textContent = total + ' total';
+  document.getElementById('gen-count-hdr').textContent = total;
+
+  CATEGORIES.forEach(function(cat){
+    var items = GENERATORS.filter(function(g){ return g.cat === cat.id; });
+    if(items.length === 0) return;
+    var section = document.createElement('div');
+    section.className = 'cat-section';
+
+    var hdr = document.createElement('div');
+    hdr.className = 'cat-header';
+    hdr.innerHTML = '<div class="cat-dot" style="background:'+cat.color+'"></div>'
+      +'<div class="cat-label">'+cat.label+'</div>'
+      +'<div class="cat-count">'+items.length+'</div>'
+      +'<div class="cat-toggle">&#9662;</div>';
+
+    var list = document.createElement('div');
+    list.className = 'cat-items';
+
+    items.forEach(function(g){
+      var item = document.createElement('div');
+      item.className = 'gen-item';
+      item.id = 'item-'+g.id;
+      item.innerHTML = '<div class="gen-item-text"><div class="gen-name">'+g.id+'. '+g.name+'</div><div class="gen-dist">'+g.dist+'</div></div>'
+        +'<button class="gen-edit-btn" onclick="event.stopPropagation();openEditPanel('+g.id+')">Edit</button>';
+      item.addEventListener('click', function(){
+        map.setView([g.lat, g.lng], 15, { animate:true });
+        if(leafletMarkers[g.id]) leafletMarkers[g.id].openPopup();
+        highlightSidebar(g.id);
+      });
+      list.appendChild(item);
+    });
+
+    hdr.addEventListener('click', function(){
+      list.classList.toggle('collapsed');
+      hdr.querySelector('.cat-toggle').textContent = list.classList.contains('collapsed') ? '&#9658;' : '&#9662;';
+    });
+
+    section.appendChild(hdr);
+    section.appendChild(list);
+    sb.appendChild(section);
+  });
+}
+
+function highlightSidebar(id){
+  document.querySelectorAll('.gen-item').forEach(function(el){ el.classList.remove('active'); });
+  var el = document.getElementById('item-'+id);
+  if(el){ el.classList.add('active'); el.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+}
+
+// =====================================================================
+//  EDIT PANEL
+// =====================================================================
+function openEditPanel(id){
+  var g = GENERATORS.find(function(x){ return x.id === id; });
+  if(!g) return;
+  editingId = id;
+  document.getElementById('ep-title').textContent = 'Edit Generator';
+  document.getElementById('btn-delete').style.display = 'block';
+  document.getElementById('f-id').value    = g.id;
+  document.getElementById('f-name').value  = g.name;
+  document.getElementById('f-cat').value   = g.cat;
+  document.getElementById('f-lat').value   = g.lat;
+  document.getElementById('f-lng').value   = g.lng;
+  document.getElementById('f-dist').value  = g.dist;
+  document.getElementById('f-scale').value = g.scale;
+  document.getElementById('f-demand').value= g.demand;
+  document.getElementById('f-addr').value  = '';
+  document.getElementById('geocode-status').className = '';
+  resetLocTab();
+  updateCoordsDisplay(g.lat, g.lng);
+  setStr(g.str);
+  map.closePopup();
+  document.getElementById('edit-panel').classList.add('open');
+}
+
+function openAddPanel(){
+  editingId = null;
+  document.getElementById('ep-title').textContent = 'Add Generator';
+  document.getElementById('btn-delete').style.display = 'none';
+  document.getElementById('f-id').value    = '';
+  document.getElementById('f-name').value  = '';
+  document.getElementById('f-cat').value   = CATEGORIES[0].id;
+  document.getElementById('f-lat').value   = '';
+  document.getElementById('f-lng').value   = '';
+  document.getElementById('f-dist').value  = '';
+  document.getElementById('f-scale').value = '';
+  document.getElementById('f-demand').value= '';
+  document.getElementById('f-addr').value  = '';
+  document.getElementById('geocode-status').className = '';
+  resetLocTab();
+  updateCoordsDisplay('', '');
+  setStr(3);
+  document.getElementById('edit-panel').classList.add('open');
+}
+
+function closePanel(){
+  document.getElementById('edit-panel').classList.remove('open');
+  stopPick();
+  if(tempMarker){ map.removeLayer(tempMarker); tempMarker = null; }
+  document.querySelectorAll('.gen-item').forEach(function(el){ el.classList.remove('active'); });
+  restoreAllFields();
+  editingId = null;
+}
+
+function saveGenerator(){
+  var name   = document.getElementById('f-name').value.trim();
+  var lat    = parseFloat(document.getElementById('f-lat').value);
+  var lng    = parseFloat(document.getElementById('f-lng').value);
+
+  if(!name)               return alert('Please enter a name.');
+  if(isNaN(lat)||isNaN(lng)) return alert('Please enter coordinates, or click "Place pin on map".');
+
+  // ── Site pin mode ──
+  if(editingId === 'site'){
+    SITE.name = name; SITE.lat = lat; SITE.lng = lng;
+    siteMarker.setLatLng([lat, lng]);
+    siteMarker.setPopupContent(buildSitePopup());
+    showToast('Hotel site pin updated');
+    closePanel();
+    return;
+  }
+
+  var cat    = document.getElementById('f-cat').value;
+  var dist   = document.getElementById('f-dist').value.trim();
+  var scale  = document.getElementById('f-scale').value.trim();
+  var demand = document.getElementById('f-demand').value.trim();
+  var str    = getStr();
+
+  if(editingId !== null){
+    var g = GENERATORS.find(function(x){ return x.id === editingId; });
+    g.name = name; g.cat = cat; g.lat = lat; g.lng = lng;
+    g.dist = dist; g.scale = scale; g.demand = demand; g.str = str;
+    refreshMarker(g);
+    showToast('Generator updated');
+  } else {
+    var ng = { id:nextId++, cat:cat, name:name, lat:lat, lng:lng, dist:dist, scale:scale, demand:demand, str:str };
+    GENERATORS.push(ng);
+    addMarker(ng);
+    showToast('Generator added');
+  }
+  buildSidebar();
+  closePanel();
+}
+
+function deleteGenerator(){
+  if(!confirm('Delete "' + (GENERATORS.find(function(x){return x.id===editingId;})||{}).name + '"? This cannot be undone.')) return;
+  removeMarker(editingId);
+  GENERATORS = GENERATORS.filter(function(g){ return g.id !== editingId; });
+  buildSidebar();
+  closePanel();
+  showToast('Generator deleted');
+}
+
+// =====================================================================
+//  COORD PICK
+// =====================================================================
+function togglePick(){ pickingCoord ? stopPick() : startPick(); }
+function startPick(){
+  pickingCoord = true;
+  map.getContainer().style.cursor = 'crosshair';
+  document.getElementById('btn-pick').classList.add('picking');
+  document.getElementById('btn-pick').textContent = 'Now click the map... (click button to cancel)';
+}
+function stopPick(){
+  pickingCoord = false;
+  map.getContainer().style.cursor = '';
+  document.getElementById('btn-pick').classList.remove('picking');
+  document.getElementById('btn-pick').innerHTML = '&#128506; Place pin on map';
+}
+
+// =====================================================================
+//  LOCATION TAB SWITCHER
+// =====================================================================
+function resetLocTab(){
+  document.querySelectorAll('.loc-tab').forEach(function(b,i){ b.classList.toggle('active', i===0); });
+  document.querySelectorAll('.loc-pane').forEach(function(p,i){ p.classList.toggle('active', i===0); });
+  stopPick();
+}
+function switchLocTab(tab, btn){
+  document.querySelectorAll('.loc-tab').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.loc-pane').forEach(function(p){ p.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('loc-pane-'+tab).classList.add('active');
+  if(tab !== 'click') stopPick();
+}
+
+// =====================================================================
+//  GEOCODER  (Nominatim — free, no API key)
+// =====================================================================
+function geocodeAddress(){
+  var addr = (document.getElementById('f-addr').value || '').trim();
+  if(!addr) return;
+  var btn = document.getElementById('btn-geocode');
+  var status = document.getElementById('geocode-status');
+  btn.classList.add('loading'); btn.textContent = '...';
+  status.className = ''; status.style.display = 'none';
+
+  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(addr),
+    { headers:{ 'Accept-Language':'fr,en' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      btn.classList.remove('loading'); btn.textContent = 'Locate';
+      if(!data || data.length === 0){
+        status.className = 'err'; status.textContent = 'Address not found. Try adding the city or country.';
+        return;
+      }
+      var lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+      document.getElementById('f-lat').value = lat.toFixed(5);
+      document.getElementById('f-lng').value = lng.toFixed(5);
+      updateCoordsDisplay(lat, lng);
+      if(tempMarker) map.removeLayer(tempMarker);
+      tempMarker = L.circleMarker([lat, lng], { radius:9, color:'#1D4ED8', fillColor:'#93C5FD', fillOpacity:.85, weight:2 }).addTo(map);
+      map.setView([lat, lng], 16, { animate:true });
+      var short = data[0].display_name.split(',').slice(0,3).join(', ');
+      status.className = 'ok'; status.innerHTML = '&#10003; ' + short;
+    })
+    .catch(function(){
+      btn.classList.remove('loading'); btn.textContent = 'Locate';
+      status.className = 'err'; status.textContent = 'Search failed. Check your connection.';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  var addrInput = document.getElementById('f-addr');
+  if(addrInput){
+    addrInput.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); geocodeAddress(); }
+    });
+  }
+});
+
+function updateCoordsDisplay(lat, lng){
+  var el = document.getElementById('current-coords');
+  if(el && lat && lng) el.textContent = 'Current: ' + parseFloat(lat).toFixed(5) + ', ' + parseFloat(lng).toFixed(5);
+}
+
+// =====================================================================
+//  EXPORT
+// =====================================================================
+function exportData(){
+  var json = JSON.stringify(GENERATORS, null, 2);
+  var blob = new Blob([json], { type:'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'demand_generators_63ter.json'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('Exported as JSON');
+}
+
+// =====================================================================
+//  DOWNLOAD HTML  (bakes current data into a fresh copy of this file)
+// =====================================================================
+function downloadHTML(){
+  // Grab the full source of the current page
+  var src = document.documentElement.outerHTML;
+
+  // Build updated SITE and GENERATORS blocks to inject
+  var siteStr = 'const SITE = ' + JSON.stringify(SITE) + ';';
+  var genStr  = 'let GENERATORS = ' + JSON.stringify(GENERATORS, null, 2) + ';';
+
+  // Replace the SITE line
+  src = src.replace(/const SITE = \{[^\}]+\};/, siteStr);
+
+  // Replace the GENERATORS block (from `let GENERATORS = [` to the closing `];`)
+  src = src.replace(/let GENERATORS = \[[\s\S]*?\];/, genStr);
+
+  var blob = new Blob([src], { type:'text/html;charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'Demand_Generators_Map_63ter.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('\u2713 HTML downloaded with all your edits');
+}
+
+// =====================================================================
+//  TOAST
+// =====================================================================
+var toastTimer;
+function showToast(msg){
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2800);
+}
+
+// =====================================================================
+//  LEGEND
+// =====================================================================
+var legend = L.control({ position:'bottomright' });
+legend.onAdd = function(){
+  var div = L.DomUtil.create('div','map-legend');
+  div.innerHTML = '<h4>Categories</h4>'
+    + CATEGORIES.map(function(c){ return '<div class="legend-row"><div class="legend-dot" style="background:'+c.color+'"></div><span>'+c.label+'</span></div>'; }).join('')
+    + '<div class="legend-row" style="margin-top:7px;padding-top:7px;border-top:1px solid #E2E6EC"><div class="legend-dot" style="background:#B8941F"></div><strong>Hotel Site</strong></div>';
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+legend.addTo(map);
+
+// =====================================================================
+//  START
+// =====================================================================
+GENERATORS.forEach(function(g){ addMarker(g); });
+buildSidebar();
+map.on('popupclose', function(){ document.querySelectorAll('.gen-item').forEach(function(el){ el.classList.remove('active'); }); });
+</script>
+
+
+</body></html>
